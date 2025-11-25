@@ -1,0 +1,1342 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agente Urbano - Ferramenta de Cidadania</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="shortcut icon"
+        href="https://images.vexels.com/media/users/3/136189/isolated/preview/8aff3574eabda894d8f7484bf8e81a6e-icone-de-casa-azul.png"
+        type="image/x-icon">
+    <style>
+        :root {
+            --main-bg-color: #f1f1f1;
+            --header-bg-color: #c7c7c7;
+            --card-bg-color: transparent;
+            --text-light: #FFFFFF;
+            --text-secondary: #B0B0B0;
+            --btn-blue: #1E90FF;
+            --btn-gray: #55585E;
+            --btn-green: #3CB371;
+            --header-height: 70px;
+            --blue-filter-color: rgba(30, 144, 255, 0.5);
+            --map-marker-color: #4A4D51;
+            --primary-color: #007bff;
+            --secondary-color-new: #6c757d;
+            --success-color: #28a745;
+            --dark-text-new: #343a40;
+            --border-color-new: #dee2e6;
+            --info-color-new: #17a2b8;
+            --light-bg-new: #f8f9fa;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Poppins', sans-serif;
+        }
+
+        body {
+            background-color: var(--main-bg-color);
+            padding-top: var(--header-height);
+            min-height: 100vh;
+            position: relative;
+            overflow-x: hidden;
+            background-image:
+                radial-gradient(circle at 10% 20%, rgba(0, 0, 0, 0.04) 1px, transparent 1px),
+                radial-gradient(circle at 90% 80%, rgba(0, 0, 0, 0.04) 1px, transparent 1px);
+            background-size: 40px 40px;
+            background-attachment: fixed;
+            color: initial;
+        }
+
+        .header-nav {
+            display: flex;
+            justify-content: flex-start;
+            align-items: center;
+            height: 12vh;
+            padding: 0 30px;
+            background-color: #ffffff;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+            position: fixed;
+            top: 0;
+            width: 100%;
+            z-index: 1000;
+            backdrop-filter: none;
+            -webkit-backdrop-filter: none;
+        }
+
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: var(--primary-color);
+            display: flex;
+            align-items: center;
+            flex-shrink: 0;
+            margin-right: 30px;
+        }
+
+        .logo i {
+            font-size: 1.4rem;
+            margin-right: 10px;
+            color: var(--info-color-new);
+        }
+
+        .main-menu {
+            display: flex;
+            align-items: center;
+            flex-grow: 1;
+            justify-content: center;
+            gap: 20px;
+        }
+
+        .main-menu a {
+            padding: 5px 0;
+            color: var(--dark-text-new);
+            text-decoration: none;
+            font-weight: 500;
+            transition: color 0.3s, border-bottom 0.1s;
+            display: flex;
+            align-items: center;
+        }
+
+        .main-menu a i {
+            margin-right: 6px;
+            font-size: 0.9rem;
+            color: var(--secondary-color-new);
+        }
+
+        .main-menu a:hover,
+        .main-menu a.active {
+            color: var(--primary-color);
+            border-bottom: 2px solid var(--primary-color);
+        }
+
+        .main-menu a.active i,
+        .main-menu a:hover i {
+            color: var(--primary-color);
+        }
+
+        .user-actions {
+            display: flex;
+            align-items: center;
+            margin-left: auto;
+            gap: 15px;
+            flex-shrink: 0;
+        }
+
+        .new-report-btn {
+            background-color: var(--success-color);
+            color: white;
+            padding: 8px 15px;
+            border-radius: 5px;
+            font-weight: 500;
+            transition: background-color 0.3s;
+            text-decoration: none;
+        }
+
+        .new-report-btn:hover {
+            background-color: #218838;
+        }
+
+        .profile-button {
+            display: flex;
+            align-items: center;
+            padding: 8px 12px;
+            background-color: var(--light-bg-new);
+            border-radius: 20px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            border: 1px solid var(--border-color-new);
+        }
+
+        .profile-button:hover {
+            background-color: #e9ecef;
+        }
+
+        .profile-button .avatar {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            object-fit: cover;
+            margin-right: 8px;
+            border: none;
+        }
+
+        .profile-button .user-name {
+            color: var(--dark-text-new);
+            font-size: 14px;
+            font-weight: 500;
+            margin: 0;
+        }
+
+        .main-content-wrapper {
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            width: 100%;
+            padding: 20px;
+        }
+
+        .container {
+            width: 90vw;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+            border-radius: 12px;
+            overflow: hidden;
+            margin-top: 30px;
+        }
+
+        .main-card {
+            background-color: var(--card-bg-color);
+            color: var(--text-light);
+            padding: 40px 30px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+            border-top-left-radius: 0;
+            border-top-right-radius: 0;
+
+        }
+
+        .map-background {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            background:
+                radial-gradient(circle at 85% 95%, var(--btn-blue) 8px, transparent 9px) no-repeat,
+                repeating-linear-gradient(45deg, #4A4D51, #4A4D51 1px, transparent 1px, transparent 10px),
+                repeating-linear-gradient(-45deg, #4A4D51, #4A4D51 1px, transparent 1px, transparent 10px);
+            background-size: 100% 100%;
+        }
+
+        #bg-video {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            opacity: 1;
+            z-index: 1;
+        }
+
+        #video-overlay-blue {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: var(--blue-filter-color);
+            z-index: 2;
+        }
+
+        .content-overlay {
+            position: relative;
+            z-index: 3;
+        }
+
+        .main-title {
+            font-size: 2.2rem;
+            font-weight: 600;
+            margin-bottom: 20px;
+            letter-spacing: -0.5px;
+        }
+
+        .main-subtitle {
+            font-size: 1rem;
+            color: var(--text-light);
+            margin-bottom: 40px;
+            line-height: 1.5;
+            font-weight: 400;
+        }
+
+        .stats {
+            display: flex;
+            justify-content: center;
+            gap: 50px;
+            margin-bottom: 50px;
+        }
+
+        .stat-item {
+            text-align: center;
+            min-width: 120px;
+            position: relative;
+        }
+
+        .stat-number {
+            font-size: 2.2rem;
+            font-weight: 600;
+            color: var(--text-light);
+            margin-bottom: 5px;
+        }
+
+        .stat-item:nth-child(2) {
+            margin-left: 20px;
+        }
+
+        .stat-label {
+            font-size: 0.85rem;
+            color: var(--text-light);
+            font-weight: 400;
+            white-space: nowrap;
+        }
+
+        .actions {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 15px;
+            margin-bottom: 40px;
+        }
+
+        .action-btn {
+            padding: 12px 25px;
+            border: none;
+            border-radius: 6px;
+            font-size: 1rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            display: flex;
+            align-items: center;
+            text-decoration: none;
+            color: var(--text-light);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+
+        .btn-denunciar {
+            background-color: var(--btn-blue);
+        }
+
+        .btn-feed {
+            background-color: var(--btn-gray);
+        }
+
+        .btn-mapa {
+            background-color: var(--btn-green);
+        }
+
+        .action-btn i {
+            margin-right: 8px;
+        }
+
+        .citizenship-message {
+            font-size: 0.9rem;
+            color: var(--text-light);
+            font-weight: 400;
+        }
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--light-bg);
+    border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+    background-color: var(--primary-color);
+    border-radius: 10px;
+    border: 2px solid var(--light-bg);
+}
+
+
+::-webkit-scrollbar-thumb:hover {
+    background-color: #0056b3;
+}
+
+* {
+    scrollbar-color: var(--primary-color) var(--light-bg);
+    scrollbar-width: thin;
+}
+
+
+        .report-categories {
+            width: 100%;
+            padding: 60px 0;
+            text-align: center;
+            background-color: var(--light-bg-new);
+            border-top: 1px solid var(--border-color-new);
+            color: var(--dark-text-new);
+        }
+
+        .report-categories h2 {
+            font-size: 2rem;
+            font-weight: 600;
+            color: var(--dark-text-new);
+            margin-bottom: 10px;
+        }
+
+        .section-subtitle {
+            font-size: 1rem;
+            color: var(--secondary-color-new);
+            margin-bottom: 40px;
+        }
+
+        .category-container {
+            width: 90vw;
+            max-width: 1200px;
+            margin: 0 auto;
+            overflow-x: auto;
+            scrollbar-width: none;
+            -ms-overflow-style: none;
+        }
+
+        .category-container::-webkit-scrollbar {
+            display: none;
+           
+        }
+
+        .category-list {
+            display: flex;
+            flex-direction: row;
+            flex-wrap: nowrap;
+            gap: 20px;
+            padding-bottom: 20px;
+            width: max-content;
+            margin: 0 auto;
+        }
+
+        .category-card {
+            background-color: #ffffff;
+            border: 1px solid var(--border-color-new);
+            border-radius: 12px;
+            padding: 25px;
+            width: 280px;
+            text-align: left;
+            flex-shrink: 0;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+
+        .category-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        .category-card i {
+            font-size: 1.8rem;
+            margin-bottom: 15px;
+        }
+
+        .category-card h3 {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: var(--dark-text-new);
+            margin-bottom: 8px;
+        }
+
+        .category-card p {
+            font-size: 0.9rem;
+            color: var(--secondary-color-new);
+            line-height: 1.5;
+        }
+
+        .scroll-hint {
+            display: none;
+            margin-top: 20px;
+            color: var(--secondary-color-new);
+            font-size: 0.9rem;
+        }
+
+        .about-section {
+            padding: 60px 20px;
+            background-color: var(--main-bg-color);
+            text-align: center;
+            color: var(--dark-text-new);
+        }
+
+        .about-section h2 {
+            font-size: 2rem;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+
+        .about-section .section-subtitle {
+            max-width: 800px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .about-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+            margin-top: 40px;
+        }
+
+        .about-card {
+            background-color: #ffffff;
+            border: 1px solid var(--border-color-new);
+            border-radius: 12px;
+            padding: 30px;
+            text-align: left;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+        }
+
+        .about-card i {
+            font-size: 1.8rem;
+            color: var(--primary-color);
+            margin-bottom: 15px;
+        }
+
+        .about-card h3 {
+            font-size: 1.2rem;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .about-card p {
+            font-size: 0.9rem;
+            color: var(--secondary-color-new);
+            line-height: 1.5;
+        }
+
+        @media (max-width: 768px) {
+            .header-nav {
+                justify-content: space-around;
+                padding: 0 15px;
+            }
+
+            .main-menu {
+                display: none;
+            }
+
+            .user-actions {
+                gap: 10px;
+            }
+
+            .new-report-btn {
+                padding: 8px 10px;
+            }
+
+            .main-title {
+                font-size: 1.8rem;
+            }
+
+            .stats {
+                gap: 20px;
+            }
+
+            .action-btn {
+                width: 100%;
+                justify-content: center;
+            }
+
+            .category-list {
+                padding-left: 20px;
+                padding-right: 20px;
+            }
+
+            .scroll-hint {
+                display: block;
+            }
+
+            .footer-card {
+                padding: 40px 30px;
+                padding-top: 80px;
+            }
+
+            .footer-content {
+                flex-direction: column;
+                text-align: center;
+            }
+
+            .footer-section {
+                min-width: 100%;
+                margin-bottom: 30px;
+            }
+
+            .footer-links ul {
+                text-align: center;
+            }
+
+            .footer-logo-section {
+                margin-right: 0;
+                margin-bottom: 30px;
+                text-align: center;
+            }
+
+            .footer-logo-section i {
+                display: block;
+                margin: 0 auto 5px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .logo .fas {
+                font-size: 1.2rem;
+            }
+
+            .logo {
+                font-size: 1rem;
+            }
+
+            .profile-button .user-name {
+                display: none;
+            }
+
+            .profile-button .avatar {
+                margin-right: 0;
+            }
+        }
+
+        .btn-comece-denunciar {
+            display: inline-flex;
+            justify-content: center;
+            align-items: center;
+            background-color: var(--btn-blue);
+            color: white;
+            padding: 12px 35px;
+            border-radius: 30px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            text-decoration: none;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+            transition: background-color 0.3s;
+        }
+
+        .btn-comece-denunciar:hover {
+            background-color: #0077ff;
+        }
+
+        .site-footer {
+            padding: 60px 20px 20px;
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            background-color: var(--main-bg-color);
+        }
+
+        .footer-card {
+            background-color: #ffffff;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            border-radius: 12px;
+            padding: 60px;
+            max-width: 1100px;
+            width: 100%;
+            text-align: left;
+            position: relative;
+        }
+
+        .footer-content {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+        }
+
+        .footer-section {
+            min-width: 150px;
+            margin-bottom: 20px;
+        }
+
+        .footer-logo-section {
+            min-width: 100px;
+            margin-right: 30px;
+        }
+
+        .footer-logo-section i {
+            font-size: 3rem;
+            color: var(--primary-color);
+        }
+
+        .footer-logo-section .logo-text {
+            font-size: 2.5rem;
+            font-weight: 600;
+            color: var(--dark-text-new);
+            margin-top: -10px;
+        }
+
+        .footer-section h3 {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--dark-text-new);
+            margin-bottom: 15px;
+        }
+
+        .footer-links ul {
+            list-style: none;
+            padding: 0;
+        }
+
+        .footer-links ul li {
+            margin-bottom: 8px;
+        }
+
+        .footer-links ul li a {
+            text-decoration: none;
+            color: var(--secondary-color-new);
+            font-size: 0.95rem;
+            transition: color 0.3s;
+        }
+
+        .footer-links ul li a:hover {
+            color: var(--primary-color);
+        }
+
+        .footer-social {
+            text-align: center;
+            padding: 20px 0;
+            border-top: 1px solid var(--border-color-new);
+        }
+
+        .social-icons a {
+            color: var(--dark-text-new);
+            font-size: 1.2rem;
+            margin: 0 10px;
+            transition: color 0.3s;
+        }
+
+        .social-icons a:hover {
+            color: var(--primary-color);
+        }
+
+        .footer-bottom {
+            text-align: center;
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid var(--border-color-new);
+            font-size: 0.8rem;
+            color: var(--secondary-color-new);
+            line-height: 1.5;
+        }
+
+        .modal {
+            display: block;
+            position: fixed;
+            z-index: 2000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0, 0, 0, 0.5);
+            opacity: 1;
+            transition: opacity 0.3s ease, visibility 0.3s ease;
+        }
+
+        .modal.hidden {
+            opacity: 0;
+            visibility: hidden;
+        }
+
+        .modal-content {
+            background-color: #fefefe;
+            margin: 10% auto;
+            padding: 25px;
+            border: 1px solid #888;
+            width: 90%;
+            max-width: 450px;
+            border-radius: 8px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+            position: relative;
+        }
+
+        .close-btn {
+            color: #aaa;
+            position: absolute;
+            top: 10px;
+            right: 15px;
+            font-size: 28px;
+            font-weight: bold;
+        }
+
+        .close-btn:hover,
+        .close-btn:focus {
+            color: black;
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        .profile-form .form-group {
+            margin-bottom: 15px;
+        }
+
+        .profile-form label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+            color: var(--dark-text-new);
+        }
+
+        .profile-form input[type="text"],
+        .profile-form input[type="password"] {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid var(--border-color-new);
+            border-radius: 4px;
+        }
+
+        .form-buttons {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+
+        .submit-btn,
+        .cancel-btn,
+        .secondary-btn {
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 500;
+        }
+
+        .submit-btn {
+            background-color: var(--primary-color);
+            color: white;
+        }
+
+        .cancel-btn {
+            background-color: var(--secondary-color-new);
+            color: white;
+        }
+
+        .profile-image-container {
+            text-align: center;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div vw class="enabled">
+        <div vw-access-button class="active"></div>
+        <div vw-plugin-wrapper>
+            <div class="vw-plugin-top-wrapper"></div>
+        </div>
+    </div>
+    <script src="https://vlibras.gov.br/app/vlibras-plugin.js"></script>
+    <script>
+        new window.VLibras.Widget('https://vlibras.gov.br/app');
+    </script>
+    <div class="header-nav">
+        <div class="logo">
+            <i class="fas fa-chart-line"></i> Agente Urbano
+        </div>
+        <nav class="main-menu">
+            <a href="dashboard.php" class=""><i id="desenho" class="fas fa-tachometer-alt"></i> Dashboard</a>
+            <a href="mapa.html" class=""><i class="fas fa-map"></i> Mapa</a>
+            <a href="relatorios.html" class=""><i class="fas fa-list-alt"></i> Relatórios</a>
+        </nav>
+        <div class="user-actions">
+            <a href="mapa.html" id="novo-relatorio-btn" class="new-report-btn">+ Novo Problema</a>
+            <div id="profile-btn" class="profile-button">
+                <img id="user-avatar" src="https://www.gravatar.com/avatar/?d=mp" alt="Avatar" class="avatar">
+                <span id="user-name-text" class="user-name">Entrar</span>
+            </div>
+        </div>
+    </div>
+    <div class="main-content-wrapper">
+        <main class="container">
+            <div class="main-card">
+
+                <div class="map-background">
+                    <video autoplay muted loop id="bg-video">
+                        <source src="./imagens/457701_Asia_Korea_3840x2160.mp4" type="video/mp4">
+                        Seu navegador não suporta a tag de vídeo.
+                    </video>
+                    <div id="video-overlay-blue"></div>
+                </div>
+
+                <div class="content-overlay">
+                    <h1 class="main-title">Ferramenta de Cidadania</h1>
+                    <p class="main-subtitle">
+                        Participe da melhoria das cidades denunciando problemas urbanos de forma anônima e colaborativa.
+                    </p>
+
+                    <div class="stats">
+                        <div class="stat-item">
+                            <div class="stat-number" id="total-reports">...</div>
+                            <div class="stat-label">Denúncias Registradas</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-number" id="total-users">...</div>
+                            <div class="stat-label">Cidadãos Ativos</div>
+                        </div>
+                    </div>
+
+                    <div class="actions">
+                        <a href="dashboard.php" class="action-btn btn-denunciar">
+                            <i class="fa-solid fa-flag"></i>
+                            Dashboard
+                        </a>
+                        <a href="relatorios.html" class="action-btn btn-feed">
+                            <i class="fa-solid fa-list-ul"></i>
+                            Feed de Denúncias
+                        </a>
+                        <a href="mapa.html" class="action-btn btn-mapa">
+                            <i class="fa-solid fa-map"></i>
+                            Mapa de Denúncias
+                        </a>
+                    </div>
+
+                    <p class="citizenship-message">
+                        Cidadania ativa, cidades melhores. Seja um Agente Urbano.
+                    </p>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <section class="report-categories">
+        <h2>O Que Você Pode Reportar</h2>
+        <p class="section-subtitle">Problemas públicos comuns que precisam de atenção imediata.</p>
+        <div class="category-container">
+            <div class="category-list">
+
+                <div class="category-card">
+                    <i class="fas fa-lightbulb" style="color: #FFC107;"></i>
+                    <h3>Iluminação</h3>
+                    <p>Postes apagados, lâmpadas quebradas ou locais sem iluminação pública.</p>
+                </div>
+
+                <div class="category-card">
+                    <i class="fas fa-road" style="color: #0056b3;"></i>
+                    <h3>Asfalto</h3>
+                    <p>Buracos na via, calçadas danificadas ou problemas de pavimentação.</p>
+                </div>
+
+                <div class="category-card">
+                    <i class="fas fa-trash-alt" style="color: #28A745;"></i>
+                    <h3>Limpeza</h3>
+                    <p>Lixo acumulado em locais públicos, entulho ou necessidade de varrição.</p>
+                </div>
+
+                <div class="category-card">
+                    <i class="fas fa-water" style="color: #DC3545;"></i>
+                    <h3>Água e Esgoto</h3>
+                    <p>Vazamentos de água, esgoto a céu aberto ou falta de saneamento.</p>
+                </div>
+
+                <div class="category-card">
+                    <i class="fas fa-bus" style="color: #6A5ACD;"></i>
+                    <h3>Transporte</h3>
+                    <p>Problemas com pontos de ônibus, atrasos de linhas ou sinalização.</p>
+                </div>
+
+                <div class="category-card">
+                    <i class="fas fa-map-marker-alt" style="color: #6C757D;"></i>
+                    <h3>Outros</h3>
+                    <p>Qualquer outro problema que não se encaixa nas categorias acima.</p>
+                </div>
+            </div>
+        </div>
+        <p class="scroll-hint">← Deslize para ver todas as categorias →</p>
+    </section>
+
+    <section class="about-section">
+        <h2>Sobre o Agente Urbano</h2>
+        <p class="section-subtitle">
+            O Olho Urbano é uma plataforma para que qualquer cidadão possa denunciar e acompanhar problemas na
+            infraestrutura, acessibilidade, saúde, meio ambiente e segurança da cidade. As denúncias são anônimas,
+            seguras e ajudam a promover transparência, participação ativa e melhorias reais no espaço urbano.
+        </p>
+
+        <div class="about-list">
+            <div class="about-card">
+                <i class="fas fa-flag"></i>
+                <h3>Denunciar Problemas</h3>
+                <p>Infraestrutura, acessibilidade, saúde, meio ambiente, segurança e mais.</p>
+            </div>
+            <div class="about-card">
+                <i class="fas fa-clock"></i>
+                <h3>Acompanhar Status</h3>
+                <p>Veja o andamento das denúncias e seja notificado sobre atualizações.</p>
+            </div>
+            <div class="about-card">
+                <i class="fas fa-users"></i>
+                <h3>Votar e Priorizar</h3>
+                <p>Vote nos problemas mais urgentes da sua região. Receba apoio e apoie outros olhos urbanos.</p>
+            </div>
+            <div class="about-card">
+                <i class="fas fa-shield-alt"></i>
+                <h3>Privacidade Garantida</h3>
+                <p>Denúncias anônimas, dados protegidos e criptografados para sua segurança.</p>
+            </div>
+        </div>
+    </section>
+
+    <footer class="site-footer">
+        <div class="footer-card">
+            <a href="mapa.html" class="btn-comece-denunciar"
+                style="position: absolute; top: 0; left: 50%; transform: translate(-50%, -170%);">
+                Comece a Denunciar
+            </a>
+
+            <div class="footer-content">
+
+                <div class="footer-logo-section footer-section" >
+                    <i class="fas fa-chart-line logo-icon"></i>
+                    <div class="logo-text" style="margin-top: 10px;">Agente <br> Urbano</div>
+                </div>
+
+                <div class="footer-links footer-section">
+                    <h3>Institucional</h3>
+                    <ul>
+                        <li><a href="#">Sobre nós</a></li>
+                        <li><a href="#">Transparência</a></li>
+                        <li><a href="#">Status</a></li>
+                        <li><a href="#">Termos e privacidade</a></li>
+                        <li><a href="#">Ajuda</a></li>
+                        <li><a href="#">Blog</a></li>
+                    </ul>
+                </div>
+
+                <div class="footer-links footer-section">
+                    <h3>Soluções e Parcerias</h3>
+                    <ul>
+                        <li><a href="#">Prefeituras e Governos</a></li>
+                        <li><a href="#">Empresas</a></li>
+                        <li><a href="#">Universidades e Pesquisadores</a></li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="footer-bottom">
+                &copy; 2025 Agente Urbano. Todos os direitos reservados.
+                <p>Criado com <i class="fas fa-heart" style="color: #DC3545;"></i> em Porto Alegre</p>
+            </div>
+        </div>
+    </footer>
+
+    <div id="auth-modal" class="modal hidden">
+        <div class="modal-content profile-modal">
+            <span class="close-btn auth-close-btn">&times;</span>
+            <h2 id="auth-title">Entrar</h2>
+
+            <form id="auth-form" class="profile-form">
+                <div class="profile-image-container" style="display: none; margin-bottom: 15px;">
+                    <img id="profile-image" src="https://www.gravatar.com/avatar/?d=mp" alt="Profile"
+                        style="width: 100px; height: 100px; border-radius: 50%; object-fit: cover; margin-bottom: 10px;">
+                    <div style="display: flex; gap: 10px; justify-content: center;">
+                        <input type="file" id="profile-image-input" name="avatar" accept="image/*"
+                            style="display: none;">
+                        <button type="button" id="change-image-btn" style="margin-top: 0;">Escolher Arquivo</button>
+                        <button type="button" id="take-photo-btn" style="margin-top: 0;">Tirar Foto</button>
+                    </div>
+                    <video id="profile-video" autoplay playsinline
+                        style="display:none; width:100px; height:100px; border-radius:50%; object-fit:cover; margin-top:30px;"></video>
+                    <button type="button" id="capture-photo-btn" style="display:none; margin-top:5px;">Capturar</button>
+                </div>
+                <div class="form-group">
+                    <label for="auth-username">Usuário</label>
+                    <input type="text" id="auth-username" name="username" required>
+                </div>
+                <div class="form-group">
+                    <label for="auth-password">Senha</label>
+                    <input type="password" id="auth-password" name="password" required>
+                </div>
+                <div class="form-buttons" style="margin-top:20px;">
+                    <button type="submit" id="auth-submit" class="submit-btn">Entrar</button>
+                    <button type="button" id="switch-to-register" class="cancel-btn">Registrar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    <script>
+        let currentUser = null;
+
+        function fetchStats() {
+            const reportCountElement = document.getElementById('total-reports');
+            const userCountElement = document.getElementById('total-users');
+
+            if (!reportCountElement || !userCountElement) {
+                console.error("Elementos de estatística não encontrados (IDs).");
+                return;
+            }
+
+            reportCountElement.textContent = '...';
+            userCountElement.textContent = '...';
+
+            fetch('api.php?action=get_stats')
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Erro na rede ou o endpoint "api.php?action=get_stats" não existe.');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.success) {
+                        reportCountElement.textContent = data.total_reports;
+                        userCountElement.textContent = data.total_users;
+                    } else {
+                        console.error("Erro da API ao buscar estatísticas:", data.message);
+                        reportCountElement.textContent = '0';
+                        userCountElement.textContent = '0';
+                    }
+                })
+                .catch(error => {
+                    console.error("Erro ao buscar estatísticas:", error.message);
+                    reportCountElement.textContent = 'ERRO';
+                    userCountElement.textContent = 'ERRO';
+                });
+        }
+
+
+        function initAuth() {
+            const profileBtn = document.getElementById('profile-btn');
+            const userNameText = document.getElementById('user-name-text');
+            const userAvatar = document.getElementById('user-avatar');
+            const authModal = document.getElementById('auth-modal');
+            const authForm = document.getElementById('auth-form');
+            const authTitle = document.getElementById('auth-title');
+            const switchToRegisterBtn = document.getElementById('switch-to-register');
+            const authCloseBtn = document.querySelector('.auth-close-btn');
+            const googleLoginBtn = document.getElementById('google-login');
+            const profileImageInput = document.getElementById('profile-image-input');
+            const changeImageBtn = document.getElementById('change-image-btn');
+            const profileImage = document.getElementById('profile-image');
+            const takePhotoBtn = document.getElementById('take-photo-btn');
+            const profileVideo = document.getElementById('profile-video');
+            const capturePhotoBtn = document.getElementById('capture-photo-btn');
+
+            let mediaStream = null;
+
+            function updateAuthUI() {
+                if (!profileBtn || !userNameText || !userAvatar) return;
+                if (currentUser) {
+                    userNameText.textContent = currentUser;
+                    profileBtn.style.cursor = 'pointer';
+                    const savedAvatar = localStorage.getItem(`avatar_${currentUser}`);
+                    if (savedAvatar) {
+                        userAvatar.src = savedAvatar;
+                        if (profileImage) profileImage.src = savedAvatar;
+                    }
+                    document.querySelector('.profile-image-container').style.display = 'block';
+                } else {
+                    userNameText.textContent = 'Entrar';
+                    userAvatar.src = 'https://www.gravatar.com/avatar/?d=mp';
+                    const profileImageContainer = document.querySelector('.profile-image-container');
+                    if (profileImageContainer) profileImageContainer.style.display = 'none';
+                }
+            }
+
+            function fetchCurrentUser() {
+                fetch('api.php?action=current_user')
+                    .then(r => r.json())
+                    .then(data => {
+                        currentUser = data.username || null;
+                        updateAuthUI();
+                    });
+            }
+
+            let authMode = 'login';
+
+            if (takePhotoBtn && profileVideo && capturePhotoBtn) {
+                takePhotoBtn.addEventListener('click', async () => {
+                    try {
+                        mediaStream = await navigator.mediaDevices.getUserMedia({ video: true });
+                        profileVideo.srcObject = mediaStream;
+                        profileVideo.style.display = 'block';
+                        capturePhotoBtn.style.display = 'inline-block';
+                        if (profileImage) profileImage.style.display = 'none';
+                    } catch (err) {
+                        alert('Não foi possível acessar a câmera: ' + err.message);
+                    }
+                });
+
+                capturePhotoBtn.addEventListener('click', () => {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = profileVideo.videoWidth;
+                    canvas.height = profileVideo.videoHeight;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(profileVideo, 0, 0, canvas.width, canvas.height);
+                    const imageDataUrl = canvas.toDataURL('image/png');
+                    if (profileImage) {
+                        profileImage.src = imageDataUrl;
+                        profileImage.style.display = 'block';
+                    }
+                    profileVideo.style.display = 'none';
+                    capturePhotoBtn.style.display = 'none';
+                    if (mediaStream) {
+                        mediaStream.getTracks().forEach(track => track.stop());
+                        mediaStream = null;
+                    }
+                });
+            }
+
+            if (profileBtn) profileBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                const authUsernameInput = document.getElementById('auth-username');
+
+                if (currentUser) {
+                    authMode = 'profile';
+                    authTitle.textContent = 'Meu Perfil';
+                    authUsernameInput.value = currentUser;
+
+                    authUsernameInput.disabled = true;
+                    if (changeImageBtn) changeImageBtn.style.display = 'none';
+                    if (takePhotoBtn) takePhotoBtn.style.display = 'none';
+
+                    if (profileVideo) profileVideo.style.display = 'none';
+                    if (capturePhotoBtn) capturePhotoBtn.style.display = 'none';
+                    if (mediaStream) {
+                        mediaStream.getTracks().forEach(track => track.stop());
+                        mediaStream = null;
+                    }
+
+                    if (profileImage) {
+                        profileImage.style.display = 'block';
+                        const savedAvatar = localStorage.getItem(`avatar_${currentUser}`);
+                        if (savedAvatar) {
+                            profileImage.src = savedAvatar;
+                        } else {
+                            profileImage.src = 'https://www.gravatar.com/avatar/?d=mp';
+                        }
+                    }
+
+                    document.getElementById('auth-password').closest('.form-group').style.display = 'none';
+                    document.getElementById('auth-submit').style.display = 'none';
+                    switchToRegisterBtn.textContent = 'Deslogar';
+                    document.querySelector('.profile-image-container').style.display = 'block';
+
+                } else {
+                    authMode = 'login';
+                    if (authTitle) authTitle.textContent = 'Entrar';
+                    authUsernameInput.value = '';
+                    authUsernameInput.disabled = false;
+                    if (changeImageBtn) changeImageBth.style.display = 'none';
+                    if (takePhotoBtn) takePhotoBtn.style.display = 'none';
+
+                    document.getElementById('auth-password').closest('.form-group').style.display = 'block';
+                    document.getElementById('auth-submit').textContent = 'Entrar';
+                    document.getElementById('auth-submit').style.display = 'block';
+                    switchToRegisterBtn.textContent = 'Registrar';
+                    document.querySelector('.profile-image-container').style.display = 'none';
+                }
+                if (authModal) {
+                    authModal.classList.remove('hidden');
+                }
+            });
+
+            if (authCloseBtn) authCloseBtn.addEventListener('click', () => {
+                if (authModal) {
+                    authModal.classList.add('hidden');
+                    if (profileVideo && mediaStream) {
+                        profileVideo.srcObject = null;
+                        mediaStream.getTracks().forEach(track => track.stop());
+                        mediaStream = null;
+                    }
+                }
+            });
+
+            if (authModal) {
+                authModal.addEventListener('click', (e) => {
+                    if (e.target === authModal) {
+                        authModal.classList.add('hidden');
+                        if (profileVideo && mediaStream) {
+                            profileVideo.srcObject = null;
+                            mediaStream.getTracks().forEach(track => track.stop());
+                            mediaStream = null;
+                        }
+                    }
+                });
+            }
+
+            if (switchToRegisterBtn) switchToRegisterBtn.addEventListener('click', () => {
+                if (authMode === 'profile') {
+                    if (confirm('Deseja realmente sair?')) {
+                        fetch('api.php?action=logout').then(r => r.json()).then(() => {
+                            currentUser = null;
+                            window.location.reload();
+                        });
+                    }
+                    return;
+                }
+
+                authMode = authMode === 'login' ? 'register' : 'login';
+                if (authTitle) authTitle.textContent = authMode === 'login' ? 'Entrar' : 'Registrar';
+
+                const imageContainer = document.querySelector('.profile-image-container');
+                const isRegister = authMode === 'register';
+
+                if (imageContainer) imageContainer.style.display = isRegister ? 'block' : 'none';
+
+                if (changeImageBtn) changeImageBtn.style.display = isRegister ? 'inline-block' : 'none';
+                if (takePhotoBtn) takePhotoBtn.style.display = isRegister ? 'inline-block' : 'none';
+                document.getElementById('auth-username').disabled = false;
+
+                document.getElementById('auth-password').closest('.form-group').style.display = 'block';
+
+                const submitBtn = document.getElementById('auth-submit');
+                if (submitBtn) submitBtn.textContent = authMode === 'login' ? 'Entrar' : 'Registrar';
+                if (submitBtn) submitBtn.style.display = 'block';
+
+                switchToRegisterBtn.textContent = authMode === 'login' ? 'Registrar' : 'Entrar';
+            });
+
+            if (changeImageBtn) changeImageBtn.addEventListener('click', () => {
+                profileImageInput.click();
+            });
+
+            if (profileImageInput) {
+                profileImageInput.addEventListener('change', function (e) {
+                    const file = this.files[0];
+                    if (file) {
+                        const reader = new FileReader();
+                        reader.onload = function (e) {
+                            const imageDataUrl = e.target.result;
+                            profileImage.src = imageDataUrl;
+                            profileImage.style.display = 'block';
+                            if (profileVideo) profileVideo.style.display = 'none';
+                            if (capturePhotoBtn) capturePhotoBtn.style.display = 'none';
+                            if (currentUser) {
+                                localStorage.setItem(`avatar_${currentUser}`, imageDataUrl);
+                                userAvatar.src = imageDataUrl;
+                            }
+                        }
+                        reader.readAsDataURL(file);
+                    }
+                });
+            }
+
+            if (authForm) authForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const formData = new FormData(authForm);
+                const url = authMode === 'login' ? 'api.php?action=login' : 'api.php?action=register';
+
+                if (authMode === 'register' && profileImageInput.files[0]) {
+                    formData.append('avatar', profileImageInput.files[0]);
+                }
+
+                fetch(url, { method: 'POST', body: formData })
+                    .then(r => r.json())
+                    .then(res => {
+                        if (res.success) {
+                            currentUser = res.username;
+
+                            if (authMode === 'register' && profileImage.src !== 'https://www.gravatar.com/avatar/?d=mp') {
+                                localStorage.setItem(`avatar_${currentUser}`, profileImage.src);
+                            }
+
+                            alert(res.message);
+                            window.location.reload();
+                        } else {
+                            alert(res.message || 'Erro no login/registro');
+                        }
+                    }).catch(err => console.error(err));
+            });
+            fetchCurrentUser();
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            initAuth();
+            fetchStats();
+        });
+    </script>
+</body>
+
+</html>
