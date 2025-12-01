@@ -50,7 +50,7 @@ $in_progress_count = $data['em_andamento'] ?? 0;
 <body class="dashboard-page">
     <div class="header-nav">
         <div class="logo">
-               <a href="homepage.html"><i class="fas fa-chart-line"></i> Agente Urbano</a>
+            <a href="index.html"><i class="fas fa-chart-line"></i> Agente Urbano</a>
         </div>
         <nav class="main-menu">
             <a href="dashboard.php" class="active"><i class="fas fa-tachometer-alt"></i> Dashboard</a>

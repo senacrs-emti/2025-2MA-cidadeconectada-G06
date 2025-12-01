@@ -17,6 +17,235 @@ const svModal = document.getElementById('streetview-modal');
 const svBtn = document.getElementById('mode-streetview-btn');
 const svCloseBtn = document.getElementById('close-streetview-btn');
 const svPanoDiv = document.getElementById('streetview-pano');
+// lightweight UI helpers (modals/toasts) to replace native alert/prompt/confirm
+const uiMessageModal = document.getElementById('ui-message-modal');
+const uiMessageTitle = document.getElementById('ui-message-title');
+const uiMessageBody = document.getElementById('ui-message-body');
+const uiToastContainer = document.getElementById('ui-toast-container');
+
+function showToast(text, type = 'info', timeout = 3000) {
+    if (!uiToastContainer) {
+        console.log(text);
+        return;
+    }
+    const toast = document.createElement('div');
+    toast.className = `ui-toast ${type}`;
+    toast.innerHTML = `<span>${text}</span>`;
+    uiToastContainer.appendChild(toast);
+    requestAnimationFrame(() => toast.classList.add('show'));
+    setTimeout(() => {
+        toast.classList.remove('show');
+        setTimeout(() => { try { uiToastContainer.removeChild(toast); } catch (e) { } }, 300);
+    }, timeout);
+}
+
+function showMessage(title, html, options = {}) {
+    if (!uiMessageModal) {
+        alert(title + '\n\n' + (typeof html === 'string' ? html.replace(/<[^>]+>/g, '') : ''));
+        if (options.onClose) options.onClose();
+        return;
+    }
+    uiMessageTitle.innerText = title || 'Mensagem';
+    uiMessageBody.innerHTML = typeof html === 'string' ? html : String(html || '');
+    uiMessageModal.classList.remove('hidden');
+    uiMessageModal.setAttribute('aria-hidden', 'false');
+
+    const okBtn = uiMessageModal.querySelector('.ui-message-ok');
+    const closeBtn = uiMessageModal.querySelector('.ui-message-close');
+
+    function cleanup() {
+        uiMessageModal.classList.add('hidden');
+        uiMessageModal.setAttribute('aria-hidden', 'true');
+        okBtn.removeEventListener('click', cleanup);
+        closeBtn.removeEventListener('click', cleanup);
+        if (options.onClose) options.onClose();
+    }
+
+    okBtn.addEventListener('click', cleanup);
+    closeBtn.addEventListener('click', cleanup);
+
+    if (options.autoClose) {
+        setTimeout(() => { if (!uiMessageModal.classList.contains('hidden')) cleanup(); }, options.timeout || 3500);
+    }
+}
+
+function createFormModal(title, fields, onSubmit) {
+    const overlay = document.createElement('div');
+    overlay.className = 'modal';
+    overlay.style.zIndex = 4000;
+    const content = document.createElement('div');
+    content.className = 'modal-content';
+    content.style.maxWidth = '520px';
+
+    const closeBtn = document.createElement('span');
+    closeBtn.className = 'close-btn';
+    closeBtn.innerHTML = '&times;';
+    content.appendChild(closeBtn);
+
+    const h2 = document.createElement('h2');
+    h2.innerText = title;
+    content.appendChild(h2);
+
+    const form = document.createElement('div');
+    form.style.marginTop = '10px';
+
+    const inputs = {};
+    const files = {};
+
+    fields.forEach(f => {
+        const label = document.createElement('label');
+        label.innerText = f.label;
+        form.appendChild(label);
+
+        if (f.type === 'textarea') {
+            const ta = document.createElement('textarea');
+            ta.rows = 4;
+            ta.value = f.value || '';
+            ta.style.width = '100%';
+            ta.style.marginBottom = '8px';
+            inputs[f.name] = ta;
+            form.appendChild(ta);
+            return;
+        }
+
+        if (f.type === 'file') {
+            // image preview (optional)
+            const preview = document.createElement('img');
+            preview.className = 'modal-preview';
+            if (f.preview) {
+                preview.src = f.preview;
+                preview.style.display = 'block';
+            } else {
+                preview.style.display = 'none';
+            }
+            form.appendChild(preview);
+
+            const fileInput = document.createElement('input');
+            fileInput.type = 'file';
+            fileInput.accept = 'image/*';
+            fileInput.style.width = '100%';
+            fileInput.style.marginBottom = '8px';
+            fileInput.addEventListener('change', () => {
+                const file = fileInput.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = (ev) => {
+                        preview.src = ev.target.result;
+                        preview.style.display = 'block';
+                    };
+                    reader.readAsDataURL(file);
+                } else {
+                    if (f.preview) {
+                        preview.src = f.preview;
+                        preview.style.display = 'block';
+                    } else {
+                        preview.style.display = 'none';
+                    }
+                }
+            });
+            inputs[f.name] = fileInput;
+            files[f.name] = null;
+            form.appendChild(fileInput);
+            return;
+        }
+
+        // default input
+        const input = document.createElement('input');
+        input.type = f.type || 'text';
+        input.value = f.value || '';
+        input.style.width = '100%';
+        input.style.marginBottom = '8px';
+        inputs[f.name] = input;
+        form.appendChild(input);
+    });
+
+    content.appendChild(form);
+
+    const footer = document.createElement('div');
+    footer.style.textAlign = 'right';
+    footer.style.marginTop = '10px';
+
+    const cancelBtn = document.createElement('button');
+    cancelBtn.className = 'cancel-btn';
+    cancelBtn.innerText = 'Cancelar';
+    cancelBtn.style.marginRight = '8px';
+
+    const saveBtn = document.createElement('button');
+    saveBtn.className = 'submit-btn';
+    saveBtn.innerText = 'Salvar';
+
+    footer.appendChild(cancelBtn);
+    footer.appendChild(saveBtn);
+    content.appendChild(footer);
+
+    overlay.appendChild(content);
+    document.body.appendChild(overlay);
+
+    function close() { try { document.body.removeChild(overlay); } catch (e) { } }
+
+    closeBtn.addEventListener('click', close);
+    cancelBtn.addEventListener('click', close);
+
+    saveBtn.addEventListener('click', () => {
+        const values = {};
+        const selectedFiles = {};
+        Object.keys(inputs).forEach(k => {
+            const el = inputs[k];
+            if (!el) return;
+            if (el.type === 'file') {
+                selectedFiles[k] = el.files && el.files[0] ? el.files[0] : null;
+            } else if (el.tagName && el.tagName.toLowerCase() === 'textarea') {
+                values[k] = el.value;
+            } else {
+                values[k] = el.value;
+            }
+        });
+        onSubmit(values, { close, files: selectedFiles });
+    });
+
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+}
+
+function createConfirmModal(title, message, onConfirm) {
+    const overlay = document.createElement('div');
+    overlay.className = 'modal';
+    overlay.style.zIndex = 4000;
+    const content = document.createElement('div');
+    content.className = 'modal-content';
+    content.style.maxWidth = '480px';
+    const closeBtn = document.createElement('span');
+    closeBtn.className = 'close-btn';
+    closeBtn.innerHTML = '&times;';
+    content.appendChild(closeBtn);
+    const h2 = document.createElement('h2');
+    h2.innerText = title;
+    content.appendChild(h2);
+    const p = document.createElement('p');
+    p.style.marginTop = '8px';
+    p.innerHTML = message;
+    content.appendChild(p);
+    const footer = document.createElement('div');
+    footer.style.textAlign = 'right';
+    footer.style.marginTop = '14px';
+    const cancelBtn = document.createElement('button');
+    cancelBtn.className = 'cancel-btn';
+    cancelBtn.innerText = 'Cancelar';
+    cancelBtn.style.marginRight = '8px';
+    const okBtn = document.createElement('button');
+    okBtn.className = 'submit-btn';
+    okBtn.innerText = 'Confirmar';
+    footer.appendChild(cancelBtn);
+    footer.appendChild(okBtn);
+    content.appendChild(footer);
+    overlay.appendChild(content);
+    document.body.appendChild(overlay);
+
+    function close() { try { document.body.removeChild(overlay); } catch (e) { } }
+    closeBtn.addEventListener('click', close);
+    cancelBtn.addEventListener('click', close);
+    okBtn.addEventListener('click', () => { onConfirm(); close(); });
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+}
 const reportModal = document.getElementById('report-modal');
 const reportForm = document.getElementById('report-form');
 const novoRelatorioBtn = document.getElementById('novo-relatorio-btn');
@@ -271,7 +500,7 @@ function adicionarMarcadoresNoPanorama(panoLocation) {
  */
 function mostrarStreetView(latlng) {
     if (typeof google === 'undefined' || !google.maps || !google.maps.StreetViewPanorama) {
-        alert("A API do Google Maps Street View ainda não carregou. Tente novamente em alguns segundos.");
+        showMessage("Aguardando Street View", '<p>A API do Google Maps Street View ainda não carregou. Tente novamente em alguns segundos.</p>');
         return;
     }
 
@@ -399,7 +628,7 @@ function getMarkerIcon(tipo) {
         className: 'custom-fa-icon-pin',
         html: iconHtml,
         iconSize: [size, size],
-        iconAnchor: [size / 2, size], 
+        iconAnchor: [size / 2, size],
         popupAnchor: [0, -size]
     });
 }
@@ -453,7 +682,7 @@ function applyFilters() {
 
     let filteredData = allProblemsData.filter(problem => {
         const matchesCategory = selectedCategory === 'all' || (problem.tipo && problem.tipo.toLowerCase() === selectedCategory.toLowerCase());
-       
+
         const matchesStatus = selectedStatus === 'all' || (problem.status && problem.status.toLowerCase().replace(' ', '_') === selectedStatus.toLowerCase().replace(' ', '_'));
 
         return matchesCategory && matchesStatus;
@@ -506,31 +735,38 @@ function applyFilters() {
 
             if (editBtn) {
                 editBtn.addEventListener('click', () => {
-                    const novoTitulo = prompt('Novo título:', problem.titulo || '');
-                    const novaDesc = prompt('Nova descrição:', problem.descricao || '');
-                    if (novoTitulo === null && novaDesc === null) return;
-                    const form = new URLSearchParams();
-                    form.append('id', problem.id);
-                    if (novoTitulo !== null) form.append('titulo', novoTitulo);
-                    if (novaDesc !== null) form.append('descricao', novaDesc);
+                    createFormModal('Editar Relatório', [
+                        { name: 'titulo', label: 'Título', value: problem.titulo || '' },
+                        { name: 'descricao', label: 'Descrição', type: 'textarea', value: problem.descricao || '' },
+                        { name: 'imagem_upload', label: 'Imagem (opcional)', type: 'file', preview: problem.imagem_url || '' }
+                    ], (values, { close, files }) => {
+                        // use FormData so we can optionally upload a new image
+                        const formData = new FormData();
+                        formData.append('id', problem.id);
+                        formData.append('titulo', values.titulo || '');
+                        formData.append('descricao', values.descricao || '');
+                        if (files && files.imagem_upload) {
+                            formData.append('imagem_upload', files.imagem_upload);
+                        }
 
-                    fetch('api.php?action=edit_report', { method: 'POST', body: form })
-                        .then(r => r.json())
-                        .then(resp => { alert(resp.message); loadProblems(); })
-                        .catch(err => console.error(err));
+                        fetch('api.php?action=edit_report', { method: 'POST', body: formData })
+                            .then(r => r.json())
+                            .then(resp => { showToast(resp.message || 'Atualizado', resp.success ? 'success' : 'error'); loadProblems(); close(); })
+                            .catch(err => { console.error(err); showMessage('Erro', '<p>Erro ao editar o relatório.</p>'); });
+                    });
                 });
             }
 
             if (delBtn) {
                 delBtn.addEventListener('click', () => {
-                    if (!confirm('Confirma exclusão deste relatório?')) return;
-                    const form = new URLSearchParams();
-                    form.append('id', problem.id);
-
-                    fetch('api.php?action=delete_report', { method: 'POST', body: form })
-                        .then(r => r.json())
-                        .then(resp => { alert(resp.message); loadProblems(); })
-                        .catch(err => console.error(err));
+                    createConfirmModal('Confirmar exclusão', 'Confirma exclusão deste relatório?', () => {
+                        const form = new URLSearchParams();
+                        form.append('id', problem.id);
+                        fetch('api.php?action=delete_report', { method: 'POST', body: form })
+                            .then(r => r.json())
+                            .then(resp => { showToast(resp.message || 'Excluído', resp.success ? 'success' : 'error'); loadProblems(); })
+                            .catch(err => { console.error(err); showMessage('Erro', '<p>Não foi possível excluir o relatório.</p>'); });
+                    });
                 });
             }
         });
@@ -538,7 +774,7 @@ function applyFilters() {
         marker.addTo(problemsLayerGroup);
     });
 
-    closeFilterSidebar(); 
+    closeFilterSidebar();
 }
 
 function openFilterSidebar() {
@@ -638,7 +874,7 @@ reportForm.addEventListener('submit', function (e) {
     const lng = formLongitude.value;
 
     if (!lat || !lng) {
-        alert('Por favor, selecione a localização do problema no mapa antes de enviar.');
+        showMessage('Localização necessária', '<p>Por favor, selecione a localização do problema no mapa antes de enviar.</p>');
         return;
     }
 
@@ -662,9 +898,9 @@ reportForm.addEventListener('submit', function (e) {
                     console.error("Resposta Bruta do Servidor (Possível erro PHP/MySQL ou poluição de output):", text);
                     try {
                         const errorJson = JSON.parse(text);
-                        alert(`Erro: ${errorJson.message}`);
+                        showMessage('Erro do servidor', `<p>${errorJson.message}</p>`);
                     } catch {
-                        alert(`Erro de JSON! A API PHP está enviando um erro (${response.status}) em formato HTML. Verifique se o seu 'api.php' não tem NADA antes de <?php.`);
+                        showMessage('Erro de comunicação', `<p>Erro de JSON! A API PHP está enviando um erro (${response.status}) em formato HTML. Verifique se o seu 'api.php' não tem NADA antes de &lt;?php.</p>`);
                     }
                 });
                 return Promise.reject('Erro no servidor.');
@@ -674,7 +910,7 @@ reportForm.addEventListener('submit', function (e) {
         })
         .then(result => {
             if (result.success) {
-                alert('Relatório enviado com sucesso!');
+                showToast('Relatório enviado com sucesso!', 'success', 3000);
                 closeReportModal();
                 if (result.report_id && currentUser) {
                     console.log('Tentando reivindicar relatório:', result.report_id);
@@ -697,7 +933,7 @@ reportForm.addEventListener('submit', function (e) {
                     loadProblems();
                 }
             } else {
-                alert('Erro ao enviar relatório: ' + result.message);
+                showMessage('Erro ao enviar relatório', `<p>${result.message || 'Ocorreu um erro.'}</p>`);
             }
         })
         .catch(error => console.error('Erro de rede ou JSON inválido:', error));
@@ -833,7 +1069,7 @@ window.addEventListener('DOMContentLoaded', function () {
                     capturePhotoBtn.style.display = 'inline-block';
                     if (profileImage) profileImage.style.display = 'none';
                 } catch (err) {
-                    alert('Não foi possível acessar a câmera: ' + err.message);
+                    showMessage('Erro de câmera', `<p>Não foi possível acessar a câmera: ${err.message}</p>`);
                 }
             });
 
@@ -867,8 +1103,8 @@ window.addEventListener('DOMContentLoaded', function () {
                 authUsernameInput.value = currentUser;
 
                 authUsernameInput.disabled = true;
-                if (changeImageBtn) changeImageBtn.style.display = 'none'; 
-                if (takePhotoBtn) takePhotoBtn.style.display = 'none';   
+                if (changeImageBtn) changeImageBtn.style.display = 'none';
+                if (takePhotoBtn) takePhotoBtn.style.display = 'none';
 
                 if (profileVideo) {
                     profileVideo.style.display = 'none';
@@ -904,7 +1140,7 @@ window.addEventListener('DOMContentLoaded', function () {
                 authUsernameInput.value = '';
                 authUsernameInput.disabled = false;
                 if (changeImageBtn) changeImageBtn.style.display = 'none';
-                if (takePhotoBtn) takePhotoBtn.style.display = 'none';  
+                if (takePhotoBtn) takePhotoBtn.style.display = 'none';
 
                 document.getElementById('auth-password').closest('.form-group').style.display = 'block';
                 document.getElementById('auth-submit').textContent = 'Entrar';
@@ -922,11 +1158,11 @@ window.addEventListener('DOMContentLoaded', function () {
             if (authModal) {
                 authModal.classList.add('hidden');
                 if (profileVideo && mediaStream) {
-                    profileVideo.srcObject = null; 
+                    profileVideo.srcObject = null;
                     mediaStream.getTracks().forEach(track => track.stop());
                     mediaStream = null;
                 }
-                updateSearchVisibility(); 
+                updateSearchVisibility();
             }
         });
 
@@ -935,7 +1171,7 @@ window.addEventListener('DOMContentLoaded', function () {
                 if (e.target === authModal) {
                     authModal.classList.add('hidden');
                     if (profileVideo && mediaStream) {
-                        profileVideo.srcObject = null; 
+                        profileVideo.srcObject = null;
                         mediaStream.getTracks().forEach(track => track.stop());
                         mediaStream = null;
                     }
@@ -946,12 +1182,12 @@ window.addEventListener('DOMContentLoaded', function () {
 
         if (switchToRegisterBtn) switchToRegisterBtn.addEventListener('click', () => {
             if (authMode === 'profile') {
-                if (confirm('Deseja realmente sair?')) {
+                createConfirmModal('Sair', 'Deseja realmente sair?', () => {
                     fetch('api.php?action=logout').then(r => r.json()).then(() => {
                         currentUser = null;
                         window.location.reload();
                     });
-                }
+                });
                 return;
             }
 
@@ -1001,7 +1237,7 @@ window.addEventListener('DOMContentLoaded', function () {
         }
 
         if (googleLoginBtn) googleLoginBtn.addEventListener('click', () => {
-            alert('Em breve: Login com Google!');
+            showToast('Em breve: Login com Google!', 'info', 2500);
         });
 
         if (authForm) authForm.addEventListener('submit', (e) => {
@@ -1023,10 +1259,10 @@ window.addEventListener('DOMContentLoaded', function () {
                             localStorage.setItem(`avatar_${currentUser}`, profileImage.src);
                         }
 
-                        alert(res.message);
-                        window.location.reload();
+                        showToast(res.message || 'Sucesso', 'success', 1500);
+                        setTimeout(() => window.location.reload(), 900);
                     } else {
-                        alert(res.message || 'Erro no login/registro');
+                        showMessage('Erro', `<p>${res.message || 'Erro no login/registro'}</p>`);
                     }
                 }).catch(err => console.error(err));
         });
@@ -1071,7 +1307,7 @@ window.addEventListener('DOMContentLoaded', function () {
 
     if (svBtn) {
         svBtn.addEventListener('click', () => {
-            alert("Modo Street View Ativado: Clique no mapa para ver a imagem.");
+            showMessage('Modo Street View Ativado', '<p>Clique no mapa para ver a imagem do Street View. Para sair, feche o modal.</p>');
 
             const mapContainer = document.getElementById('map');
             if (mapContainer) mapContainer.style.cursor = 'crosshair';

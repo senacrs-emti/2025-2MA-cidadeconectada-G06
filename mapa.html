@@ -29,7 +29,7 @@
 
     <div class="header-nav" style="position: fixed; top: 0; width: 100%; z-index: 1000;">
         <div class="logo">
-            <a href="homepage.html"><i class="fas fa-chart-line"></i> Agente Urbano</a>
+            <a href="index.html"><i class="fas fa-chart-line"></i> Agente Urbano</a>
         </div>
         <nav class="main-menu">
             <a href="dashboard.php" class=""><i id="desenho" class="fas fa-tachometer-alt"></i> Dashboard</a>
@@ -208,6 +208,21 @@
             <div id="streetview-pano" style="width:100%; height: calc(100% - 70px); background:#ccc;"></div>
         </div>
     </div>
+
+    <!-- UI message modal (replaces alert()) -->
+    <div id="ui-message-modal" class="modal hidden" aria-hidden="true">
+        <div class="modal-content" style="max-width:520px;">
+            <span class="close-btn ui-message-close">&times;</span>
+            <h2 id="ui-message-title">Mensagem</h2>
+            <div id="ui-message-body" style="margin-top:12px; color: #333;"></div>
+            <div style="margin-top:18px; text-align:right;">
+                <button class="secondary-btn ui-message-ok">OK</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast container for transient messages -->
+    <div id="ui-toast-container" aria-live="polite" aria-atomic="true" style="position: fixed; top: 20px; right: 20px; z-index: 3500;"></div>
     <div id="filter-sidebar" class="sidebar">
         <div class="sidebar-header">
             <h3>Filtros & Estatísticas</h3>
@@ -261,7 +276,7 @@
 
     <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
     <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
-    <script src="https://maps.googleapis.com/maps/api/js?&libraries=places,geometry&callback=initMap" async defer></script>
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBiD3nnZJEotrEUGK949Aw1ReC_aKPuSEM&libraries=places,geometry&callback=initMap" async defer></script>
     <script src="script.js"></script>
 </body>
 

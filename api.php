@@ -1,6 +1,11 @@
 <?php
 
+ob_start(); // buffer all output to prevent warnings/notices from corrupting JSON
 error_reporting(E_ERROR | E_PARSE);
+set_error_handler(function($errno, $errstr, $errfile, $errline) {
+    // Suppress errors - let them go to error log only, not output
+    return true;
+});
 session_start();
 define('DB_HOST', 'localhost');
 define('DB_USER', 'root');
@@ -259,6 +264,66 @@ function editReportHandler($pdo) {
     if ($status !== null) { $sets[] = 'status = ?'; $params[] = $status; }
     if ($prioridade !== null) { $sets[] = 'prioridade = ?'; $params[] = $prioridade; }
     if ($endereco !== null) { $sets[] = 'endereco = ?'; $params[] = $endereco; }
+    // Handle image upload for edit (optional)
+    $imagem_path = null;
+    if (isset($_FILES['imagem_upload']) && is_array($_FILES['imagem_upload']) && isset($_FILES['imagem_upload']['error'])) {
+        if ($_FILES['imagem_upload']['error'] === UPLOAD_ERR_NO_FILE) {
+            // No file uploaded - skip image update
+        } elseif ($_FILES['imagem_upload']['error'] === UPLOAD_ERR_OK) {
+            $file = $_FILES['imagem_upload'];
+            $ext = pathinfo($file['name'], PATHINFO_EXTENSION);
+            $allowed_ext = ['jpg', 'jpeg', 'png', 'gif'];
+
+            if (!in_array(strtolower($ext), $allowed_ext)) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'message' => 'Tipo de arquivo inválido.']);
+                return;
+            }
+
+            if (!is_dir(UPLOAD_DIR)) {
+                if (!mkdir(UPLOAD_DIR, 0777, true)) {
+                    http_response_code(500);
+                    echo json_encode(['success' => false, 'message' => 'Erro interno: Não foi possível criar a pasta uploads. Verifique as permissões.']);
+                    return;
+                }
+            }
+
+            $unique_filename = uniqid('img_', true) . '.' . $ext;
+            $destination = UPLOAD_DIR . $unique_filename;
+
+            if (!move_uploaded_file($file['tmp_name'], $destination)) {
+                http_response_code(500);
+                echo json_encode(['success' => false, 'message' => 'Erro interno ao salvar a imagem no servidor. Verifique as permissões da pasta uploads.']);
+                return;
+            }
+
+            $imagem_path = 'uploads/' . $unique_filename;
+
+            // Remove previous image file (if any) for this report, safely
+            try {
+                $stmtPrev = $pdo->prepare("SELECT imagem_url FROM relatorios WHERE id = ?");
+                $stmtPrev->execute([$id]);
+                $prev = $stmtPrev->fetchColumn();
+                if ($prev) {
+                    $prevRelative = ltrim($prev, '/\\');
+                    $prevFull = realpath(__DIR__ . DIRECTORY_SEPARATOR . $prevRelative);
+                    $uploadReal = realpath(UPLOAD_DIR);
+                    if ($prevFull && $uploadReal && strpos($prevFull, $uploadReal) === 0 && file_exists($prevFull)) {
+                        @unlink($prevFull);
+                    }
+                }
+            } catch (Exception $e) {
+                // non-fatal: continue
+            }
+
+            $sets[] = 'imagem_url = ?';
+            $params[] = $imagem_path;
+        } else {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'message' => 'Erro no envio da imagem. Código: ' . $_FILES['imagem_upload']['error']]);
+            return;
+        }
+    }
     if (empty($sets)) {
         echo json_encode(['success' => false, 'message' => 'Nenhum campo para atualizar.']);
         return;
@@ -650,4 +715,3 @@ if (basename(__FILE__) === basename($_SERVER['PHP_SELF'])) {
             break;
     }
 }
-?>
