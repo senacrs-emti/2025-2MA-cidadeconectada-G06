@@ -1,3 +1,18 @@
+/*
+    script.js - Lógica principal do lado do cliente para a aplicação de mapa
+
+    Responsabilidades:
+    - Inicializar o mapa Leaflet e suas camadas
+    - Carregar problemas a partir de `api.php` e renderizar marcadores
+    - Fornecer helpers de UI: modais, toasts e construtores de formulários
+    - Tratar criação/edição/remoção de relatórios e interações com endpoints do servidor
+    - Integrar Street View e Places Autocomplete do Google para a busca
+
+    Observações:
+    - Manter as funções helper de UI (showToast, showMessage, createFormModal, createConfirmModal)
+      genéricas para reutilização em diferentes fluxos.
+*/
+
 let map;
 let newProblemMarker = null;
 let isSelectingLocation = false;
@@ -10,6 +25,11 @@ let panorama;
 let streetViewMarkers = [];
 let allProblemsData = [];
 let ownedReportIds = [];
+let isMapInitialized = false;
+let isAutocompleteInitialized = false;
+
+// cached coordenadas do usuário para usar em recenter rápido
+let userCoords = null;
 
 const STREET_VIEW_RADIUS = 200;
 const PIN_PATH = 'M 12,2 C 8.13,2 5,5.13 5,9 c 0,5.25 7,13 7,13 s 7,-7.75 7,-13 c 0,-3.87 -3.13,-7 -7,-7 z';
@@ -17,12 +37,29 @@ const svModal = document.getElementById('streetview-modal');
 const svBtn = document.getElementById('mode-streetview-btn');
 const svCloseBtn = document.getElementById('close-streetview-btn');
 const svPanoDiv = document.getElementById('streetview-pano');
-// lightweight UI helpers (modals/toasts) to replace native alert/prompt/confirm
+// helpers leves de UI (modais/toasts) para substituir alert/prompt/confirm nativos
 const uiMessageModal = document.getElementById('ui-message-modal');
 const uiMessageTitle = document.getElementById('ui-message-title');
 const uiMessageBody = document.getElementById('ui-message-body');
 const uiToastContainer = document.getElementById('ui-toast-container');
 
+/**
+ * showToast
+ * Exibe uma notificação transitória (toast) na UI.
+ *
+ * Propósito:
+ * - Substituir usos de `alert()` simples com uma experiência non-blocking.
+ * - Usado para feedback rápido de sucesso/erro/aviso ao usuário.
+ *
+ * Parâmetros:
+ * - text (string): texto a ser exibido no toast.
+ * - type (string): tipo de estilo (ex.: 'info', 'success', 'error') — controla classes CSS.
+ * - timeout (number): tempo em ms até ocultar automaticamente.
+ *
+ * Efeitos colaterais:
+ * - Adiciona/removes elementos DOM em `uiToastContainer`.
+ * - Não retorna valor.
+ */
 function showToast(text, type = 'info', timeout = 3000) {
     if (!uiToastContainer) {
         console.log(text);
@@ -39,6 +76,19 @@ function showToast(text, type = 'info', timeout = 3000) {
     }, timeout);
 }
 
+/**
+ * showMessage
+ * Abre um modal simples de mensagem com título e conteúdo HTML.
+ *
+ * Parâmetros:
+ * - title (string): título do modal.
+ * - html (string|Node): conteúdo HTML ou texto a ser exibido.
+ * - options (object): opções adicionais, p.ex. { onClose: fn, autoClose: true, timeout: 3000 }
+ *
+ * Comportamento:
+ * - Se não houver o elemento `uiMessageModal` no DOM, cai para `alert()` como fallback.
+ * - Chama `options.onClose()` quando o modal é fechado.
+ */
 function showMessage(title, html, options = {}) {
     if (!uiMessageModal) {
         alert(title + '\n\n' + (typeof html === 'string' ? html.replace(/<[^>]+>/g, '') : ''));
@@ -69,6 +119,22 @@ function showMessage(title, html, options = {}) {
     }
 }
 
+/**
+ * createFormModal
+ * Cria dinamicamente um modal com um formulário simples com campos definidos por `fields`.
+ *
+ * Uso / formato:
+ * - `fields` é um array de objetos: { name, label, type?, value?, preview? }
+ *   - type pode ser 'text' (padrão), 'textarea' ou 'file'.
+ *   - preview (string) para `file` exibe imagem inicial (URL) como preview.
+ * - `onSubmit(values, { close, files })` é chamado quando o usuário confirma.
+ *   - `values` contém pares name->valor (strings) para inputs/textarea.
+ *   - `files` contém pares name->File (ou null) para campos do tipo file.
+ *
+ * Observações importantes:
+ * - O modal é construído como elemento DOM independente e removido após fechar.
+ * - Usa `FileReader` apenas para preview no cliente; upload real deve ser feito com FormData.
+ */
 function createFormModal(title, fields, onSubmit) {
     const overlay = document.createElement('div');
     overlay.className = 'modal';
@@ -206,6 +272,19 @@ function createFormModal(title, fields, onSubmit) {
     overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
 }
 
+/**
+ * createConfirmModal
+ * Modal genérico de confirmação (OK / Cancel).
+ *
+ * Parâmetros:
+ * - title (string): título do modal.
+ * - message (string|HTML): mensagem a ser exibida.
+ * - onConfirm (function): callback executado quando o usuário confirma.
+ *
+ * Observações:
+ * - Chamadas que exigem confirmação do usuário (ex: exclusão) devem usar esse modal
+ *   para evitar `confirm()` nativo e bloquear a UI.
+ */
 function createConfirmModal(title, message, onConfirm) {
     const overlay = document.createElement('div');
     overlay.className = 'modal';
@@ -291,14 +370,60 @@ const filterCity = document.getElementById('filter-city');
 const filterSort = document.getElementById('filter-sort');
 
 
+function initSidebarMenu() {
+    const menuToggle = document.getElementById('menu-toggle');
+    const sidebar = document.getElementById('sidebar-panel');
+    const overlay = document.getElementById('sidebar-overlay');
+    const closeBtn = document.getElementById('sidebar-close');
+
+    if (!menuToggle || !sidebar || !overlay) return;
+
+    const openSidebar = () => {
+        sidebar.classList.add('open');
+        overlay.classList.add('show');
+        document.body.classList.add('no-scroll');
+    };
+
+    const closeSidebar = () => {
+        sidebar.classList.remove('open');
+        overlay.classList.remove('show');
+        document.body.classList.remove('no-scroll');
+    };
+
+    menuToggle.addEventListener('click', openSidebar);
+    if (closeBtn) closeBtn.addEventListener('click', closeSidebar);
+    overlay.addEventListener('click', closeSidebar);
+
+    sidebar.querySelectorAll('.sidebar-link, .sidebar-action').forEach(el => {
+        el.addEventListener('click', closeSidebar);
+    });
+
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') closeSidebar();
+    });
+}
+
 
 const problemColors = {
     'iluminacao': '#FFC107',
     'asfalto': '#0056b3',
     'limpeza': '#28A745',
     'agua-esgoto': '#DC3545',
-    'transporte': '#6A5ACD',
+    'transporte': '#FF6B35',
     'outros': '#6C757D',
+    'assistencial': '#E91E63',
+    'meteorologico': '#2196F3',
+    'mobilidade': '#FF9800',
+    'saude': '#4CAF50',
+    'seguranca': '#F44336',
+    'acessibilidade': '#9C27B0',
+    'eletricidade': '#FFEB3B',
+    'meio-ambiente': '#00BCD4',
+    'estrutura': '#795548',
+    'drenagem': '#3F51B5',
+    'obras': '#FF5722',
+    'ciclismo': '#8BC34A',
+    'ma-gestao': '#673AB7',
     'pendente': '#dc3545',
     'em_analise': '#ffc107',
     'resolvido': '#28a745'
@@ -310,6 +435,19 @@ const problemIcons = {
     'limpeza': 'fa-trash-alt',
     'agua-esgoto': 'fa-water',
     'transporte': 'fa-bus',
+    'assistencial': 'fa-hand-holding-heart',
+    'meteorologico': 'fa-cloud',
+    'mobilidade': 'fa-person-walking',
+    'saude': 'fa-hospital',
+    'seguranca': 'fa-shield-alt',
+    'acessibilidade': 'fa-wheelchair',
+    'eletricidade': 'fa-bolt',
+    'meio-ambiente': 'fa-leaf',
+    'estrutura': 'fa-building',
+    'drenagem': 'fa-droplet',
+    'obras': 'fa-tools',
+    'ciclismo': 'fa-bicycle',
+    'ma-gestao': 'fa-exclamation-triangle',
     'outros': 'fa-map-marker-alt'
 };
 
@@ -317,24 +455,76 @@ const DEFAULT_COORDS = [-23.5505, -46.6333];
 const INITIAL_ZOOM = 12;
 
 
+/**
+ * initMap
+ * Inicializa o mapa Leaflet, adiciona camadas base (rua/satélite), inicializa
+ * grupos de camadas e dispara carregamento inicial de dados.
+ *
+ * Fluxo:
+ * 1. Cria mapa em `#map` com coordenadas e zoom iniciais.
+ * 2. Registra camadas de rua e satélite e define camada padrão.
+ * 3. Cria `problemsLayerGroup` para agrupar os marcadores.
+ * 4. Centraliza no usuário (se disponível) e carrega relatórios via `loadProblems()`.
+ * 5. Inicializa autocomplete e controles de modo/filtragem.
+ *
+ * Nota: essa função é o ponto de entrada principal invocado ao carregar a página do mapa.
+ */
 function initMap() {
-    map = L.map('map').setView(DEFAULT_COORDS, INITIAL_ZOOM);
+    if (isMapInitialized) {
+        initAutocomplete();
+        return;
+    }
+
+    if (typeof L === 'undefined') {
+        console.error('Leaflet não foi carregado. Verifique os scripts externos do mapa.');
+        return;
+    }
+
+    const mapElement = document.getElementById('map');
+    if (!mapElement) {
+        console.error('Elemento #map não encontrado no DOM.');
+        return;
+    }
+
+    isMapInitialized = true;
+    // inicialização normal do mapa; animações de zoom/fade ativadas para evitar bugs
+    map = L.map(mapElement, {
+        zoomAnimation: true,
+        markerZoomAnimation: true,
+        fadeAnimation: true,
+        inertia: true,
+        wheelDebounceTime: 16,
+        wheelPxPerZoomLevel: 80
+    }).setView(DEFAULT_COORDS, INITIAL_ZOOM);
+
+    const fastTileOpts = {
+        maxZoom: 19,
+        keepBuffer: 10,           // mantém um anel bem maior de tiles ao redor
+        unloadInvisibleTiles: false, // não descarta tiles fora da tela (menos “cinza”, mais memória)
+        updateWhenIdle: false,    // continua baixando enquanto arrasta
+        updateWhenZooming: true,  // pré-carrega durante zoom/fly
+        updateInterval: 50,       // agenda updates de forma mais agressiva
+        subdomains: ['a', 'b', 'c'],
+        crossOrigin: true,
+        attribution: ''
+    };
 
     streetLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-        maxZoom: 19
+        ...fastTileOpts,
+        attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
     });
 
     satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-        attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, swisstopo, and the GIS User Community',
-        maxZoom: 19
+        ...fastTileOpts,
+        attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, swisstopo, and the GIS User Community'
     });
 
     streetLayer.addTo(map);
 
     problemsLayerGroup = L.layerGroup().addTo(map);
 
-    locateUserAndCenterMap(map);
+    // pedir coordenadas iniciais em background para cache
+    locateUserAndCenterMap(map, { animate: false });
 
     loadProblems();
 
@@ -343,6 +533,8 @@ function initMap() {
 
     initAutocomplete();
 }
+
+window.initMap = initMap;
 
 /**
  * Alterna entre o modo Satélite e o modo Rua/Normal.
@@ -563,33 +755,79 @@ function fecharStreetView() {
  * Tenta usar a API de geolocalização do navegador...
  * @param {L.Map} map O objeto mapa Leaflet
  */
-function locateUserAndCenterMap(map) {
-    if ('geolocation' in navigator) {
+function locateUserAndCenterMap(map, options = {}) {
+    // options.animate: se true, faz sequência de zoom out/pan/zoom in
+    // options.coords: [lat, lng] já conhecidos (pula geolocalização async)
+    const animate = !!options.animate;
+    const providedCoords = options.coords && options.coords.length === 2 ? options.coords : null;
+
+      const perform = (lat, lng) => {
+          // atualizar cache
+          userCoords = [lat, lng];
+
+          const setUserMarker = () => {
+            const userLocationIcon = L.divIcon({
+                className: 'custom-div-icon',
+                html: '<i class="fas fa-crosshairs" style="color:#007BFF; font-size: 24px;"></i>',
+                iconSize: [20, 20],
+                iconAnchor: [12, 24],
+                popupAnchor: [0, -20]
+            });
+
+            L.marker([lat, lng], { icon: userLocationIcon }).addTo(map)
+                .bindPopup("Você está aqui!")
+                .openPopup();
+        };
+
+        if (animate) {
+            // remover eventuais marcadores anteriores com ícone de cruz
+              map.eachLayer(layer => {
+                  if (layer.options && layer.options.icon && layer.options.icon.options.html.includes('fa-crosshairs')) {
+                      map.removeLayer(layer);
+                  }
+              });
+              // garantir que animações anteriores sejam interrompidas
+              map.stop();
+
+              const targetZoom = Math.max(map.getZoom(), 15);
+              const animationOpts = {
+                  duration: 1.2,
+                  easeLinearity: 0.2,
+                  animate: true
+              };
+
+              // desabilita botão para evitar múltiplos disparos
+              if (recenterBtn) recenterBtn.disabled = true;
+
+              map.flyTo([lat, lng], targetZoom, animationOpts);
+
+              map.once('moveend', () => {
+                  setUserMarker();
+                  if (recenterBtn) recenterBtn.disabled = false;
+              });
+          } else {
+              map.setView([lat, lng], 15);
+              setUserMarker();
+          }
+      };
+
+    if (providedCoords) {
+        // utiliza coordenadas já disponíveis sem esperar geolocalização
+        perform(providedCoords[0], providedCoords[1]);
+        // também pede nova localização em segundo plano para atualizar cache
+        if ('geolocation' in navigator) {
+            navigator.geolocation.getCurrentPosition(pos => {
+                userCoords = [pos.coords.latitude, pos.coords.longitude];
+            }, () => { }, { enableHighAccuracy: true, timeout: 7000, maximumAge: 0 });
+        }
+    } else if ('geolocation' in navigator) {
         console.log("Geolocalização suportada. Tentando obter a localização...");
 
         navigator.geolocation.getCurrentPosition(
             (position) => {
-                const lat = position.coords.latitude;
-                const lng = position.coords.longitude;
-
-                console.log(`Localização obtida: Lat=${lat}, Lng=${lng}`);
-
-                map.setView([lat, lng], 15);
-
-                const userLocationIcon = L.divIcon({
-                    className: 'custom-div-icon',
-                    html: '<i class="fas fa-crosshairs" style="color:#007BFF; font-size: 24px;"></i>',
-                    iconSize: [20, 20],
-                    iconAnchor: [12, 24],
-                    popupAnchor: [0, -20]
-                });
-
-                L.marker([lat, lng], { icon: userLocationIcon }).addTo(map)
-                    .bindPopup("Você está aqui!")
-                    .openPopup();
+                perform(position.coords.latitude, position.coords.longitude);
             },
             (error) => {
-
                 console.warn(`Erro de Geolocalização (${error.code}): ${error.message}. Usando local padrão.`);
             },
             {
@@ -599,7 +837,6 @@ function locateUserAndCenterMap(map) {
             }
         );
     } else {
-
         console.log("Geolocalização não é suportada por este navegador. Usando local padrão.");
     }
 }
@@ -633,7 +870,49 @@ function getMarkerIcon(tipo) {
     });
 }
 
+/**
+ * Retorna um ícone personalizado maior para hover.
+ * @param {string} tipo O tipo de problema (ex: 'iluminacao', 'asfalto')
+ * @returns {L.DivIcon} O objeto ícone Leaflet maior.
+ */
+function getHoverMarkerIcon(tipo) {
+    const normalizedTipo = tipo.toLowerCase();
+    const color = problemColors[normalizedTipo] || problemColors['outros'];
+    const iconClass = problemIcons[normalizedTipo] || problemIcons['outros'];
 
+    const size = 32; // Tamanho maior para hover
+
+    const iconHtml = `
+        <div class="fa-stack" style="font-size: ${size * 0.5}px; color: ${color};"> 
+            <i class="fas fa-circle fa-stack-2x" style="color: ${color}; filter: drop-shadow(0 1px 1px rgba(0,0,0,0.4));"></i> 
+            <i class="fas ${iconClass} fa-stack-1x fa-inverse" style="color: white; transform: translate(0px);"></i> 
+        </div>
+    `;
+
+    return L.divIcon({
+        className: 'custom-fa-icon-pin-hover',
+        html: iconHtml,
+        iconSize: [size, size],
+        iconAnchor: [size / 2, size],
+        popupAnchor: [0, -size]
+    });
+}
+
+
+/**
+ * loadProblems
+ * Requisita dados do servidor (`api.php?action=get_problems`) e popula `allProblemsData`.
+ *
+ * Comportamento:
+ * - Primeiro busca o usuário atual (`action=current_user`) e, se autenticado,
+ *   consulta quais relatórios pertencem ao usuário (`action=my_reports`) para habilitar
+ *   ações de edição/exclusão na UI.
+ * - Em seguida, busca a lista de problemas e converte lat/lng para números.
+ * - Chama `applyFilters()` para renderizar marcadores no mapa.
+ *
+ * Erros:
+ * - Qualquer erro de rede ou formato de resposta inválido é capturado e logado no console.
+ */
 function loadProblems() {
     fetch('api.php?action=current_user')
         .then(r => r.json())
@@ -668,6 +947,18 @@ function loadProblems() {
         .catch(error => console.error('Erro ao carregar problemas:', error));
 }
 
+/**
+ * applyFilters
+ * Aplica filtros (categoria / status / ordenação) em `allProblemsData` e atualiza
+ * o `problemsLayerGroup` no mapa.
+ *
+ * Regras principais:
+ * - Filtra por `filterCategory` e `filterStatus` (valores 'all' significam sem filtro).
+ * - Ordena por opção de `filterSort` (recente/antigo etc).
+ * - Para cada item filtrado: cria marcador com ícone apropriado, monta conteúdo do popup
+ *   (incluindo imagem e botões de ação se o relatório pertencer ao usuário) e
+ *   associa eventos de click/edição/exclusão.
+ */
 function applyFilters() {
     problemsLayerGroup.clearLayers();
 
@@ -676,7 +967,7 @@ function applyFilters() {
         return;
     }
 
-    const selectedCategory = filterCategory ? filterCategory.value : 'all';
+    const selectedCategory = filterCategory ? filterCategory.value.trim() || 'all' : 'all';
     const selectedStatus = filterStatus ? filterStatus.value : 'all';
     const sortBy = filterSort ? filterSort.value : 'recente';
 
@@ -697,6 +988,21 @@ function applyFilters() {
     filteredData.forEach(problem => {
         const marker = L.marker([problem.latitude, problem.longitude], {
             icon: getMarkerIcon(problem.tipo)
+        });
+
+        // Adicionar atributo data-category para filtrar por categoria
+        marker.on('add', function () {
+            const markerElement = this.getElement();
+            if (markerElement) {
+                markerElement.setAttribute('data-category', problem.tipo);
+                // Adicionar efeito de hover para aumentar o tamanho do pin
+                markerElement.addEventListener('mouseenter', () => {
+                    this.setIcon(getHoverMarkerIcon(problem.tipo));
+                });
+                markerElement.addEventListener('mouseleave', () => {
+                    this.setIcon(getMarkerIcon(problem.tipo));
+                });
+            }
         });
 
         const problemIdStr = String(problem.id);
@@ -810,6 +1116,7 @@ function closeReportModal() {
         newProblemMarker = null;
     }
     if (photonSearchContainer) photonSearchContainer.style.display = '';
+    if (reportForm) reportForm.reset();
 }
 
 function toggleMapSelectionMode(enable) {
@@ -884,6 +1191,12 @@ reportForm.addEventListener('submit', function (e) {
         formData.append('status', 'Pendente');
     }
 
+    // Debug: Log da categoria sendo enviada
+    console.log('=== SUBMISSÃO REPORT ===');
+    console.log('Categoria value:', document.getElementById('tipo')?.value);
+    console.log('FormData categoria:', formData.get('categoria'));
+    console.log('========================');
+
     fetch('api.php?action=report_problem', {
         method: 'POST',
         body: formData
@@ -911,6 +1224,7 @@ reportForm.addEventListener('submit', function (e) {
         .then(result => {
             if (result.success) {
                 showToast('Relatório enviado com sucesso!', 'success', 3000);
+                if (reportForm) reportForm.reset();
                 closeReportModal();
                 if (result.report_id && currentUser) {
                     console.log('Tentando reivindicar relatório:', result.report_id);
@@ -961,18 +1275,28 @@ if (uploadBtnStyled && imagemUploadInput) {
 
 if (recenterBtn) {
     recenterBtn.addEventListener('click', () => {
+        // remove marcadores anteriores de localização
         map.eachLayer(layer => {
             if (layer.options && layer.options.icon && layer.options.icon.options.html.includes('fa-crosshairs')) {
                 map.removeLayer(layer);
             }
         });
 
-        locateUserAndCenterMap(map);
+        // se tivermos coordenadas em cache, anima imediatamente
+        if (userCoords) {
+            locateUserAndCenterMap(map, { animate: true, coords: userCoords });
+        } else {
+            locateUserAndCenterMap(map, { animate: true });
+        }
     });
 }
 
 function initAutocomplete() {
-    if (searchInput && typeof google !== 'undefined' && google.maps.places) {
+    if (isAutocompleteInitialized || !searchInput) {
+        return;
+    }
+
+    if (typeof google !== 'undefined' && google.maps && google.maps.places && typeof google.maps.places.Autocomplete === 'function') {
 
         if (searchResults) searchResults.style.display = 'none';
 
@@ -1015,13 +1339,17 @@ function initAutocomplete() {
             searchInput.value = place.name || place.formatted_address || '';
         });
 
-    } else if (searchInput) {
+        isAutocompleteInitialized = true;
+
+    } else {
         console.warn('Google Maps Places Autocomplete não pôde ser inicializado. Verifique se a API Key e a biblioteca "places" estão carregadas.');
     }
 }
 
 
 window.addEventListener('DOMContentLoaded', function () {
+    initSidebarMenu();
+    initMap();
 
 
     (function initAuth() {

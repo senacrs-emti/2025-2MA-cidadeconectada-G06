@@ -1,9 +1,26 @@
 <?php
 
-ob_start(); // buffer all output to prevent warnings/notices from corrupting JSON
+/**
+ * api.php
+ * Endpoint único (front controller) para operações AJAX da aplicação Agente Urbano.
+ *
+ * Responsabilidades principais:
+ * - Fornecer handlers para CRUD de relatórios, autenticação simples (JSON file),
+ *   comentários e votos.
+ * - Lidar com upload seguro de imagens (diretório `uploads/`) em criação/edição.
+ * - Retornar JSON consistente para o front-end.
+ *
+ * Segurança e observações de manutenção:
+ * - Em produção, substitua o armazenamento de usuários baseado em JSON por um
+ *   sistema de usuários em BD com senhas e sessões seguras.
+ * - Verifique permissões do diretório `uploads/` e limite tamanho/tipo de arquivos no PHP.
+ */
+
+ob_start(); // bufferiza toda a saída para evitar que warnings rompam JSON
 error_reporting(E_ERROR | E_PARSE);
 set_error_handler(function($errno, $errstr, $errfile, $errline) {
-    // Suppress errors - let them go to error log only, not output
+    // Erros são suprimidos da saída HTTP intencionalmente para preservar JSON.
+    // Eles ainda devem aparecer nos logs do servidor para depuração.
     return true;
 });
 session_start();
@@ -22,10 +39,22 @@ function connectDB() {
         return $pdo;
     } catch (PDOException $e) {
         http_response_code(500);
+        // Em caso de falha na conexão com o banco, retorna JSON e interrompe.
         die(json_encode(['success' => false, 'message' => "Erro de Conexão com o DB: " . $e->getMessage()]));
     }
 }
 
+/**
+ * addVoteHandler
+ * Handler para registrar um 'voto' de apoio a um relatório.
+ *
+ * Entradas esperadas:
+ * - GET id (inteiro): id do relatório.
+ * - POST user_name (opcional): nome do usuário, fallback para sessão/anon.
+ *
+ * Saída:
+ * - JSON com 'success' e mensagem, ou 'already_voted' quando apropriado.
+ */
 function addVoteHandler($pdo) {
     $reportId = filter_input(INPUT_GET, 'id', FILTER_VALIDATE_INT);
     $userName = getCurrentUser() ?? ($_POST['user_name'] ?? ('anonimo_' . session_id())); 
@@ -99,6 +128,15 @@ function getUsersFile() {
     return __DIR__ . '/users.json';
 }
 
+/**
+ * registerUserHandler
+ * Registra um usuário simples usando arquivo `users.json`.
+ *
+ * Observações:
+ * - Armazena password com `password_hash`.
+ * - Não recomendado para produção; manter apenas para protótipo/local.
+ */
+
 function loadUsers() {
     $file = getUsersFile();
     if (!file_exists($file)) return [];
@@ -153,6 +191,49 @@ function loginUserHandler() {
     $_SESSION['username'] = $username;
     
     echo json_encode(['success' => true, 'message' => 'Login bem-sucedido.', 'username' => $username]);
+}
+
+function changePasswordHandler() {
+    $username = getCurrentUser();
+    if (!$username) {
+        http_response_code(401);
+        echo json_encode(['success' => false, 'message' => 'Você precisa estar logado para alterar a senha.']);
+        return;
+    }
+
+    $currentPassword = $_POST['current_password'] ?? '';
+    $newPassword = $_POST['new_password'] ?? '';
+
+    if ($currentPassword === '' || $newPassword === '') {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'message' => 'Preencha a senha atual e a nova senha.']);
+        return;
+    }
+
+    if (strlen($newPassword) < 6) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'message' => 'A nova senha deve ter pelo menos 6 caracteres.']);
+        return;
+    }
+
+    if ($currentPassword === $newPassword) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'message' => 'A nova senha deve ser diferente da senha atual.']);
+        return;
+    }
+
+    $users = loadUsers();
+    if (!isset($users[$username]) || !password_verify($currentPassword, $users[$username]['password'])) {
+        http_response_code(401);
+        echo json_encode(['success' => false, 'message' => 'Senha atual incorreta.']);
+        return;
+    }
+
+    $users[$username]['password'] = password_hash($newPassword, PASSWORD_DEFAULT);
+    $users[$username]['password_updated_at'] = date('c');
+    saveUsers($users);
+
+    echo json_encode(['success' => true, 'message' => 'Senha alterada com sucesso.']);
 }
 
 function logoutUserHandler() {
@@ -234,6 +315,21 @@ function getMyReportsHandler() {
 }
 
 function editReportHandler($pdo) {
+    /**
+     * editReportHandler
+     * Atualiza campos editáveis de um relatório existente e opcionalmente substitui a imagem.
+     *
+     * Entradas esperadas (POST):
+     * - id (int) - id do relatório a ser editado (obrigatório)
+     * - titulo, descricao, status, prioridade, endereco (opcionais)
+     * - imagem_upload (file) - arquivo enviado multipart/form-data (opcional)
+     *
+     * Regras de segurança:
+     * - Verifica se o usuário autenticado é proprietário do relatório via `userOwnsReport()`.
+     * - Valida extensões de imagem permitidas (jpg, jpeg, png, gif).
+     * - Salva novo arquivo em `uploads/` com nome único e tenta remover a imagem anterior
+     *   somente se estiver dentro do diretório `uploads/` (uso de realpath para segurança).
+     */
     $username = getCurrentUser();
     if (!$username) {
         http_response_code(401);
@@ -439,7 +535,10 @@ function reportProblem($pdo) {
     
     $status = filter_input(INPUT_POST, 'status', FILTER_SANITIZE_STRING) ?? 'Pendente';
 
-    $user_id = getCurrentUser() ?? 'anonimo'; 
+    $user_id = getCurrentUser() ?? 'anonimo';
+    
+    // Debug simples
+    error_log("Report: categoria=[" . ($tipo ?? 'NULL') . "] titulo=[" . substr($titulo, 0, 20) . "]");
 
     if ($lat === false || $lng === false || empty($tipo) || empty($descricao) || empty($titulo) || empty($prioridade)) {
         http_response_code(400);
@@ -558,7 +657,7 @@ function getDashboardData($pdo) {
         $taxa_resolucao = ($total > 0) ? round(($resolvidos / $total) * 100) : 0;
         
      
-        $stmt = $pdo->query("SELECT tipo, COUNT(*) as count FROM relatorios GROUP BY tipo ORDER BY count DESC LIMIT 6");
+        $stmt = $pdo->query("SELECT COALESCE(NULLIF(tipo, ''), 'outros') as tipo, COUNT(*) as count FROM relatorios GROUP BY COALESCE(NULLIF(tipo, ''), 'outros') ORDER BY count DESC");
         $tipos = $stmt->fetchAll(PDO::FETCH_ASSOC);
         
      
@@ -677,6 +776,10 @@ if (basename(__FILE__) === basename($_SERVER['PHP_SELF'])) {
             break;
         case 'login':
             if ($_SERVER['REQUEST_METHOD'] === 'POST') loginUserHandler();
+            else { http_response_code(405); echo json_encode(['success' => false, 'message' => 'Use POST']); }
+            break;
+        case 'change_password':
+            if ($_SERVER['REQUEST_METHOD'] === 'POST') changePasswordHandler();
             else { http_response_code(405); echo json_encode(['success' => false, 'message' => 'Use POST']); }
             break;
         case 'logout':
